@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>功能-计划</title>
+    {% include 'common.html' %}
+</head>
+<body>
+<div class="row">
+    <div class="col-md-12">
+        <table id="schd" class="text-nowrap"></table>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <table id="proc" class="text-nowrap"></table>
+    </div>
+</div>
+
+<div id="schd_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addSchd()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copySchd()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delSchd()">删除</button>
+    <button type="button" class="btn btn-default" onClick="runSchd()">执行</button>
+    <select id="layers" class="form-control"></select>
+</div>
+
+<script>
+    var schdTbId = '#schd';
+    var procTbId = '#proc';
+
+    var $schdTb = $(schdTbId);
+    var $procTb = $(procTbId);
+    var height = window.document.documentElement.clientHeight;
+    var height_top, height_bottom;
+    height_top = height_bottom = height * 0.5;
+
+    var type_layer = null;
+    var procColumns = null;
+
+    $.post('/action/get_type_layers/', {}, function (type_layers) {
+        var arr = [];
+        for (var i = 0; i < type_layers.length; i++) {
+            var t = type_layers[i];
+            var code = t.code;
+            var name = t.name;
+            if (i == 0) {
+                type_layer = code;
+            }
+            arr.push('<option value="' + code + '" >' + name + '</option>');
+        }
+        $("#layers").html(arr.join(""));
+        loadProc();
+        $("#layers").on("change", function () {
+            type_layer = $(this).val();
+            loadProc();
+            $schdTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        type_layer: type_layer
+                    };
+                    return temp;
+                }
+            });
+        });
+        // 读取defn_schd结构并加载表数据
+        common.getColumnDefine("defn_schd", function (columns, tableWidth) {
+            for (var index in columns) {
+                var column = columns[index];
+                var field = column.field;
+{#                if (field == 'type_layer') {#}
+{#                    column.formatter = function (value, row) {#}
+{#                        return common.getTypeLayerSel(type_layers, row.id, value);#}
+{#                    }#}
+{#                }#}
+                var index = ['bl_exec', 'bl_success'].indexOf(field);
+                if (index >= 0) {
+                    (function (column, index) {
+                        column['formatter'] = function (val) {
+                            if (val == 'y') {
+                                return index == 0 ? '可执行' : '成功';
+                            } else {
+                                return index == 0 ? '执行中' : '失败';
+                            }
+                        }
+                    })(column, index);
+                }
+                if (field.indexOf("id_") == 0) {
+                    (function (column, field) {
+                        column['formatter'] = function (val, row) {
+                            var content = row[field];
+                            if (field == 'id_proc' && row.id_proc_name) {
+                                content = row.id_proc_name;
+                            }
+                            var html = '<div style="height:20px;" name="idEditor" data-id="' + row.id + '" data-field="' + field + '">';
+                            if (val) {
+                                html += '<span class="label label-default" data-id="' + val + '">' + content + '<span class="glyphicon glyphicon-edit"></span></span>';
+                            } else {
+                                html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span></div>';
+                            }
+                            return html;
+                        }
+                    })(column, field);
+                }
+            }
+            var tableDefine = common.getTableDefine({
+                toolBarId: '#schd_toolbar',
+                height: height_top,
+                queryParams: {
+                    type_layer: type_layer
+                }
+            });
+            $.extend(tableDefine, {
+                url: '/action/schd_list/',
+                columns: columns,
+                onLoadSuccess: function (data) {
+                    // 注册select事件
+                    common.onSelectChange($schdTb.find("select"), function () {
+                        var $sel = $(this);
+                        var field = $sel.attr("data-field");
+                        var id = $sel.attr("data-id");
+                        var value = $sel.val();
+                        // 获取行数据
+                        var row = common.getRow(schdTbId, id);
+                        if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                            layer.msg('已锁定');
+                            $sel.val(row[field]);
+                            return false;
+                        }
+                        common.edit('/action/schd_edit/', schdTbId, id, field, value);
+                    });
+                    $schdTb.find("[data-field='id_proc']").find(".glyphicon-plus").off().on("click", function () {
+                        schdFieldEdit.call(this);
+                        return false;
+                    });
+                    $schdTb.find("[data-field='id_proc']").find(".glyphicon-edit").off().on("click", function () {
+                        schdFieldEdit.call(this);
+                        return false;
+                    });
+                },
+                onDblClickCell: function (field, value, row) {
+                    if (common.filterDblCell(field) || row['bl_lock'] == 'y' || ['bl_exec', 'bl_success'].indexOf(field) >= 0) {
+                        layer.open({
+                            content: value,
+                            title: field
+                        });
+                    } else {
+                        prompt('请输入' + field, value, function (value) {
+                            common.edit('/action/schd_edit/', schdTbId, row.id, field, value);
+                        });
+                    }
+                }
+            });
+            $schdTb.width(tableWidth).bootstrapTable(tableDefine);
+        });
+    }, 'json');
+
+
+    function loadProc() {
+        if (procColumns) {
+            $procTb.bootstrapTable('refresh', {query: {type_layer: type_layer}});
+        } else {
+            common.getColumnDefine("defn_proc", function (columns, tableWidth) {
+                procColumns = columns;
+                var tableDefine = common.getTableDefine({
+                    height: height_bottom,
+                    queryParams: {
+                        type_layer: type_layer
+                    }
+                });
+                $.extend(tableDefine, {
+                    url: '/action/schd_proc_list/',
+                    columns: columns,
+                    onLoadSuccess: function () {
+                        // 注册select事件
+                        common.onSelectChange($procTb.find("select"), function () {
+                            var $sel = $(this);
+                            var field = $sel.attr("data-field");
+                            var id = $sel.attr("data-id");
+                            var value = $sel.val();
+                            // 获取行数据
+                            var row = common.getRow(procTbId, id);
+                            if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                                layer.msg('已锁定');
+                                $sel.val(row[field]);
+                                return false;
+                            }
+                            common.edit('/action/proc_edit/', procTbId, id, field, value);
+                        });
+                    }
+                });
+                $procTb.width(tableWidth).bootstrapTable(tableDefine);
+            });
+        }
+    }
+
+    function schdFieldEdit() {
+        var $editor = $(this).closest("div");
+        var id = $editor.data("id");
+        var field = $editor.data("field");
+        var schdRow = common.getRow(schdTbId, id);
+        var rows = $(procTbId).bootstrapTable("getSelections");
+        if (rows.length == 0) {
+            layer.msg("请选择并只选择一行数据添加");
+            return false;
+        } else {
+            var val = schdRow[field];
+            var arr = [];
+            if (val && val.length > 0) {
+                arr = val.split(",");
+            }
+            var index = $(this).closest("div").find(".label-success").index($(this).parent()) + 1;
+            arr.splice(index, 0, rows[0].id);
+        }
+        common.edit('/action/schd_edit/', schdTbId, id, field, arr.join(","));
+    }
+
+    function addSchd() {
+        common.edit('/action/schd_edit/', schdTbId, undefined, 'type_layer', type_layer);
+    }
+
+    function delSchd() {
+        common.del('/action/schd_del/', schdTbId);
+    }
+
+    function copySchd() {
+        common.copy('/action/schd_copy/', schdTbId);
+    }
+    function runSchd(){
+        var rows = $(schdTbId).bootstrapTable("getSelections");
+        if(rows.length == 0){
+            layer.msg('请选择一行执行');
+            return false;
+        }else if(rows.length > 1){
+            layer.msg('只能选中一行执行');
+            return false;
+        }
+        var id = rows[0].id;
+        $.post('/action/schd_run/', {id: id}, function (data) {
+            if (data.flag) {
+                layer.msg('调用执行成功');
+                $(schdTbId).bootstrapTable('refresh');
+            } else {
+                layer.msg('调用执行成功');
+            }
+        }, 'json');
+    }
+</script>
+</body>
+</html>

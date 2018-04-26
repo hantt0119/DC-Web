@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>功能-流程</title>
+    {% include 'common.html' %}
+</head>
+<body>
+<div class="row">
+    <div class="col-md-12">
+        <table id="proc" class="text-nowrap"></table>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-5">
+        <table id="pi" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-7">
+        <table id="aide" class="text-nowrap"></table>
+    </div>
+</div>
+
+<div id="proc_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addProc()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyProc()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delProc()">删除</button>
+    <select id="layers" class="form-control"></select>
+</div>
+<div id="pi_toolbar" class="btn-group">
+    {#    下拉框选择是实例还是流程    #}
+    <select id="piType" class="form-control" style="margin-left:10px;">
+        <option value="inst" selected>实例</option>
+        <option value="proc">流程</option>
+    </select>
+</div>
+<div id="aide_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addAide()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyAide()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delAide()">删除</button>
+    {#    下拉框选择是记录定义还是清单定义    #}
+    <select id="aideType" class="form-control" style="margin-left:10px;">
+        <option value="1" selected>记录定义</option>
+        <option value="3">清单定义</option>
+        <option value="4">判断定义</option>
+    </select>
+</div>
+
+<script>
+    var procTbId = '#proc';
+    var piTbId = '#pi';
+    var aideTbId = '#aide';
+
+    var $procTb = $(procTbId);
+    var $piTb = $(piTbId);
+    var $aideTb = $(aideTbId);
+    var height = window.document.documentElement.clientHeight;
+    var height_top, height_bottom;
+    height_top = height_bottom = height * 0.5;
+
+    var aideColumns = null;
+
+    var type_layer = null;
+    var type = 1;
+    var type_sub = 2;
+    var piType = 'inst';
+
+    $("#aideType").on("change", function () {
+        type = $(this).val();
+        loadAideList();
+    });
+    $("#piType").on("change", function () {
+        piType = $(this).val();
+        loadPi();
+    });
+
+    $piTb.bootstrapTable(common.getTableDefine({
+        toolBarId: '#pi_toolbar',
+        height: height_bottom
+    }));
+    $.post('/action/get_type_layers/', {}, function (type_layers) {
+        var arr = [];
+        for (var i = 0; i < type_layers.length; i++) {
+            var t = type_layers[i];
+            var code = t.code;
+            var name = t.name;
+            if (i == 0) {
+                type_layer = code;
+            }
+            arr.push('<option value="' + code + '" >' + name + '</option>');
+        }
+        $("#layers").html(arr.join(""));
+        loadPi();
+        $("#layers").on("change", function () {
+            type_layer = $(this).val();
+            loadPi();
+            $procTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        type_layer: type_layer
+                    };
+                    return temp;
+                }
+            });
+        });
+        // 加载proc列表
+        common.getColumnDefine("defn_proc", function (columns, tableWidth) {
+            for (var index in columns) {
+                var column = columns[index];
+                var field = column.field;
+{#                if (field == 'type_layer') {#}
+{#                    column.formatter = function (value, row) {#}
+{#                        return common.getTypeLayerSel(type_layers, row.id, value);#}
+{#                    }#}
+{#                }#}
+                if (field.indexOf("id_") == 0) {
+                    (function (column, field) {
+                        column['formatter'] = function (val, row) {
+                            var _separator = ',';
+                            var content = row[field];
+                            if (field == 'id_judge' && row.id_judge_name) {
+                                content = row.id_judge_name.split(_separator);
+                            }
+                            if (field == 'id_list' && row.id_list_name) {
+                                content = row.id_list_name.split(_separator);
+                            }
+                            var html = '<div style="height:20px;" name="idEditor" data-id="' + row.id + '" data-field="' + field + '">';
+                            if (val) {
+                                html += '<span class="label label-default" data-id="' + val + '">' + content + '<span class="glyphicon glyphicon-edit"></span></span>';
+                            } else {
+                                html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span></div>';
+                            }
+                            return html;
+                        }
+                    })(column, field);
+                }
+                if (['array_record'].indexOf(field) >= 0) {
+                    (function (column, field) {
+                        column['formatter'] = function (val, row) {
+                            var html = '<div data-id="' + row.id + '" data-field="' + field + '">';
+                            if (val && val.length > 0) {
+                                var _separator = ",";
+                                var arr = val.split(_separator);
+                                var descArr = arr;
+                                if (field == 'array_record' && row.array_record_name) {
+                                    descArr = row.array_record_name.split(_separator);
+                                }
+                                for (var i = 0; i < arr.length; i++) {
+                                    var content = descArr[i];
+                                    html += '<span class="label label-default">' + content + '<span class="glyphicon glyphicon-remove"></span></span>';
+                                    html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                    if ((i + 1) % 3 == 0) {
+                                        html += '<div style="padding:2px 0;"></div>';
+                                    }
+                                }
+                            } else {
+                                html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                            }
+                            html += '</div>';
+                            return html;
+                        }
+                    })(column, field);
+                }
+                if (['array_exec'].indexOf(field) >= 0) {
+                    (function (column, field) {
+                        column['formatter'] = function (val, row) {
+                            var html = '<div data-id="' + row.id + '" data-field="' + field + '">';
+                            if (val && val.length > 0) {
+                                var _arr = splitExecName(row['array_exec_name']);
+                                var ifArr = _arr[0], thenArr = _arr[1], elseArr = _arr[2];
+                                html += '<div name="if">';
+                                if (ifArr.length > 0) {
+                                    for (var i = 0; i < ifArr.length; i++) {
+                                        var content = ifArr[i];
+                                        html += '<span class="label label-default">' + content + '<span class="glyphicon glyphicon-remove"></span></span>';
+                                        html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                        if ((i + 1) % 3 == 0) {
+                                            html += '<div style="padding:2px 0;"></div>';
+                                        }
+                                    }
+                                } else {
+                                    html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                }
+                                html += '</div>';
+                                html += '<div name="then"><span style="font-size: 12px;color: red;font-weight: bold;">THEN:</span>';
+                                if (thenArr.length > 0) {
+                                    for (var i = 0; i < thenArr.length; i++) {
+                                        var content = thenArr[i];
+                                        html += '<span class="label label-default">' + content + '<span class="glyphicon glyphicon-remove"></span></span>';
+                                        html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                        if ((i + 1) % 3 == 0) {
+                                            html += '<div style="padding:2px 0;"></div>';
+                                        }
+                                    }
+                                } else {
+                                    html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                }
+                                html += '</div>';
+                                html += '<div name="else"><span style="font-size: 12px;color: red;font-weight: bold;">ELSE:</span>';
+                                if (elseArr.length > 0) {
+                                    for (var i = 0; i < elseArr.length; i++) {
+                                        var content = elseArr[i];
+                                        html += '<span class="label label-default">' + content + '<span class="glyphicon glyphicon-remove"></span></span>';
+                                        html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                        if ((i + 1) % 3 == 0) {
+                                            html += '<div style="padding:2px 0;"></div>';
+                                        }
+                                    }
+                                } else {
+                                    html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                }
+                                html += '</div>';
+                            }
+                            html += '</div>';
+                            return html;
+                        }
+                    })(column, field);
+                }
+            }
+            var tableDefine = common.getTableDefine({
+                toolBarId: '#proc_toolbar',
+                height: height_top,
+                queryParams: {
+                    type_layer: type_layer
+                }
+            });
+            $.extend(tableDefine, {
+                url: '/action/proc_list/',
+                columns: columns,
+                onLoadSuccess: function (data) {
+                    // 注册select事件
+                    common.onSelectChange($procTb.find("select"), function () {
+                        var $sel = $(this);
+                        var field = $sel.attr("data-field");
+                        var id = $sel.attr("data-id");
+                        var value = $sel.val();
+                        // 获取行数据
+                        var row = common.getRow(procTbId, id);
+                        if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                            layer.msg('已锁定');
+                            $sel.val(row[field]);
+                            return false;
+                        }
+                        common.edit('/action/proc_edit/', procTbId, id, field, value);
+                    });
+                    $procTb.find("[data-field='array_record'],[data-field='id_judge'],[data-field='id_list']").find(".glyphicon-plus").off().on("click", function () {
+                        procFieldEdit.call(this);
+                        return false;
+                    });
+                    $procTb.find("[data-field='id_judge'],[data-field='id_list']").find(".glyphicon-edit").off().on("click", function () {
+                        procFieldEdit.call(this);
+                        return false;
+                    });
+                    $procTb.find("[data-field='array_exec'] .glyphicon-plus").off().on("click", function () {
+                        var $editor = $(this).closest("div");
+                        var name = $editor.attr("name");
+                        var $container = $editor.parent();
+                        var id = $container.data("id");
+                        var field = $container.data("field");
+                        var instRow = common.getRow(procTbId, id);
+                        var val = instRow[field];
+                        var arr = splitExec(val);
+                        var ifArr = arr[0];
+                        var thenArr = arr[1];
+                        var elseArr = arr[2];
+                        var _arr = name == 'if' ? ifArr : name == 'then' ? thenArr : elseArr;
+
+                        var index = $editor.find(".label-default").index($(this).parent()) + 1;
+                        // 获取选中行
+                        var rows = $(piTbId).bootstrapTable("getSelections");
+                        if (rows.length == 0) {
+                            layer.msg("请选择并只选择一行数据添加");
+                            return false;
+                        } else {
+                            var piId = rows[0].id;
+                            if (piType == 'proc') {
+                                if (id == piId) {
+                                    layer.msg("不能添加本身作为执行对象");
+                                    return false;
+                                }
+                                piId = 's' + piId;
+                            }
+                            if (_arr.length == 0) {
+                                _arr.push(piId);
+                            } else {
+                                _arr.splice(index, 0, piId);
+                            }
+                        }
+                        var value = ifArr.join(",") + "t" + thenArr.join(",") + "e" + elseArr.join(",");
+                        var snValue = common.getArraySn(ifArr.length).join(",") + "t"
+                            + common.getArraySn(thenArr.length).join(",") + "e"
+                            + common.getArraySn(elseArr.length).join(",");
+                        common.edit('/action/proc_edit/', procTbId, id, field + ";array_sn_exec", value + ";" + snValue);
+                        return false;
+                    });
+                    $procTb.find("[data-field='array_exec'] .glyphicon-remove").off().on("click", function () {
+                        var $editor = $(this).closest("div");
+                        var name = $editor.attr("name");
+                        var $container = $editor.parent();
+                        var id = $container.data("id");
+                        var field = $container.data("field");
+                        var instRow = common.getRow(procTbId, id);
+                        var val = instRow[field];
+                        var arr = splitExec(val);
+                        var ifArr = arr[0];
+                        var thenArr = arr[1];
+                        var elseArr = arr[2];
+                        var _arr = name == 'if' ? ifArr : name == 'then' ? thenArr : elseArr;
+
+                        var index = $editor.find(".label-default").index($(this).parent());
+                        _arr.splice(index, 1);
+                        var value = ifArr.join(",") + "t" + thenArr.join(",") + "e" + elseArr.join(",");
+                        var snValue = common.getArraySn(ifArr.length).join(",") + "t"
+                            + common.getArraySn(thenArr.length).join(",") + "e"
+                            + common.getArraySn(elseArr.length).join(",");
+                        common.edit('/action/proc_edit/', procTbId, id, field + ";array_sn_exec", value + ";" + snValue);
+                        return false;
+                    });
+                    $procTb.find("[data-field='array_record'],[data-field='id_judge'],[data-field='id_list']").find(".glyphicon-remove").off().on("click", function () {
+                        var $editor = $(this).closest("div");
+                        var id = $editor.data("id");
+                        var field = $editor.data("field");
+                        var instRow = common.getRow(procTbId, id);
+                        var val = instRow[field];
+                        var arr = val.split(",");
+                        var index = $editor.find(".label-default").index($(this).parent());
+                        arr.splice(index, 1);
+                        common.edit('/action/proc_edit/', procTbId, id, field, arr.join(","));
+                        return false;
+                    });
+                },
+                onDblClickCell: function (field, value, row) {
+                    if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                        layer.open({
+                            content: value,
+                            title: field
+                        });
+                    } else {
+                        prompt('请输入' + field, value, function (value) {
+                            common.edit('/action/proc_edit/', procTbId, row.id, field, value);
+                        });
+                    }
+                }
+            });
+            $procTb.width(tableWidth).bootstrapTable(tableDefine);
+        });
+    }, 'json');
+
+    // 读取defn_aide结构并加载表数据
+    common.getColumnDefine("defn_aide", function (columns, tableWidth) {
+        loadAideList(columns, tableWidth);
+    });
+
+    // 加载pi列表
+    function loadPi() {
+        var table = piType == 'inst' ? 'defn_inst' : 'defn_proc';
+        // 读取defn_aide结构并加载表数据
+        common.getColumnDefine(table, function (columns, tableWidth) {
+            $piTb.width(tableWidth);
+            $piTb.bootstrapTable('refreshOptions', {
+                url: piType == 'inst' ? '/action/proc_inst_list/' : '/action/proc_proc_list/',
+                columns: columns,
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        type_layer: type_layer
+                    };
+                    return temp;
+                },
+                onLoadSuccess: function () {
+                    // 注册select事件
+                    common.onSelectChange($piTb.find("select"), function () {
+                        var $sel = $(this);
+                        var field = $sel.attr("data-field");
+                        var id = $sel.attr("data-id");
+                        var value = $sel.val();
+                        var url = '/action/proc_edit/';
+                        if (piType == 'inst') url = '/action/inst_edit/';
+                        common.edit(url, piTbId, id, field, value);
+                    });
+                }
+            });
+        });
+    }
+
+    // 加载aide列表
+    function loadAideList(columns, tableWidth) {
+        if (aideColumns) {
+            $aideTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        type: type,
+                        type_sub: type_sub
+                    };
+                    return temp;
+                },
+            });
+        } else {
+            aideColumns = columns;
+            for (var index in columns) {
+                var column = columns[index];
+                if (column.field == 'array_var') {
+                    (function (column) {
+                        column['formatter'] = function (val, row) {
+                            var html = '<div data-id="' + row.id + '" data-field="' + column.field + '" data-val="' + val + '">';
+                            if (val && val.length > 0) {
+                                var arr = val.split(separator);
+                                for (var i = 0; i < arr.length; i++) {
+                                    var content = arr[i];
+                                    html += '<span class="label label-default">' + content + '<span class="glyphicon glyphicon-remove"></span></span>';
+                                    html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                    if ((i + 1) % 3 == 0) {
+                                        html += '<div style="padding:2px 0;"></div>';
+                                    }
+                                }
+                            } else {
+                                html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                            }
+                            html += '</div>';
+                            return html;
+                        }
+                    })(column);
+                }
+            }
+            var tableDefine = common.getTableDefine({
+                toolBarId: '#aide_toolbar',
+                height: height_bottom,
+                queryParams: {
+                    type: type,
+                    type_sub: type_sub
+                }
+            });
+            $.extend(tableDefine, {
+                url: '/action/aide_list/',
+                columns: columns,
+                onLoadSuccess: function (data) {
+                    // 注册select事件
+                    common.onSelectChange($aideTb.find("select"), function () {
+                        var $sel = $(this);
+                        var field = $sel.attr("data-field");
+                        var id = $sel.attr("data-id");
+                        var value = $sel.val();
+                        common.edit('/action/aide_edit/', aideTbId, id, field, value);
+                    });
+                    // 注册array_var相关事件
+                    $aideTb.find(".glyphicon-plus").off().on('click', function () {
+                        // 添加
+                        var $this = $(this);
+                        var $div = $this.closest("div");
+                        var id = $div.data("id");
+                        var field = $div.data("field");
+                        var val = $div.data("val");
+                        // 获取行数据
+                        var row = common.getRow(aideTbId, id);
+                        if (row.bl_lock == 'y') {
+                            layer.msg('已锁定');
+                            return;
+                        }
+                        var arr = [];
+                        var add_val = '';
+                        var len = val ? val.length : 0;
+                        if (len > 0) {
+                            arr = val.split(separator);
+                        }
+
+                        var index = $(this).closest("div").find(".label-success").index($(this).parent()) + 1;
+                        if (arr.length == 0) {
+                            add_val = 'var1_';
+                        } else {
+                            add_val = 'var' + (arr.length + 1) + '_';
+                        }
+                        // 区分新增逻辑
+                        if (len > 0) {
+                            arr.splice(index, 0, add_val)
+                        } else {
+                            arr.push(add_val);
+                        }
+                        common.edit('/action/aide_edit/', aideTbId, id, field, arr.join(separator));
+                    });
+                    $aideTb.find(".glyphicon-remove").off().on('click', function () {
+                        // 删除
+                        var $this = $(this);
+                        var $div = $this.closest("div");
+                        var id = $div.data("id");
+                        var field = $div.data("field");
+                        var val = $div.data("val");
+                        // 获取行数据
+                        var row = common.getRow(aideTbId, id);
+                        if (row.bl_lock == 'y') {
+                            layer.msg('已锁定');
+                            return;
+                        }
+                        var arr = val.split(separator);
+                        var index = $(this).closest("div").find(".label-default").index($(this).parent());
+                        arr.splice(index, 1);
+                        common.edit('/action/aide_edit/', aideTbId, id, field, arr.join(separator));
+                    });
+                },
+                onDblClickCell: function (field, value, row) {
+                    if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                        layer.open({
+                            content: value,
+                            title: field
+                        });
+                    } else {
+                        prompt('请输入' + field, value, function (value) {
+                            common.edit('/action/aide_edit/', aideTbId, row.id, field, value);
+                        });
+                    }
+                }
+            });
+            $aideTb.width(tableWidth).bootstrapTable(tableDefine);
+        }
+    }
+
+    function addProc() {
+        common.edit('/action/proc_edit/', procTbId, undefined, 'type_layer', type_layer);
+    }
+
+    function delProc() {
+        common.del('/action/proc_del/', procTbId);
+    }
+
+    function copyProc() {
+        common.copy('/action/proc_copy/', procTbId);
+    }
+
+    function addAide() {
+        common.edit('/action/aide_edit/', aideTbId, undefined, undefined, undefined, {
+            type: type,
+            type_sub: type_sub
+        });
+    }
+
+    function delAide() {
+        common.del('/action/aide_del/', aideTbId);
+    }
+
+    function copyAide() {
+        common.copy('/action/aide_copy/', aideTbId);
+    }
+
+    function procFieldEdit() {
+        var $editor = $(this).closest("div");
+        var id = $editor.data("id");
+        var field = $editor.data("field");
+        var instRow = common.getRow(procTbId, id);
+        var rows = $(aideTbId).bootstrapTable("getSelections");
+        if (rows.length == 0) {
+            layer.msg("请选择并只选择一行数据添加");
+            return false;
+        } else {
+            var val = instRow[field];
+            var arr = [];
+            if (val && val.length > 0) {
+                arr = val.split(",");
+            }
+            var index = $(this).closest("div").find(".label-success").index($(this).parent()) + 1;
+            arr.splice(index, 0, rows[0].id);
+        }
+        common.edit('/action/proc_edit/', procTbId, id, field, arr.join(","));
+    }
+
+    function splitExec(val) {
+        var _if = val.split("t")[0];
+        var _then = val.split("t")[1].split("e")[0];
+        var _else = val.split("t")[1].split("e")[1];
+        var ifArr = _if && _if.length > 0 ? _if.split(",") : [];
+        var thenArr = _then && _then.length > 0 ? _then.split(",") : [];
+        var elseArr = _else && _else.length > 0 ? _else.split(",") : [];
+        return [ifArr, thenArr, elseArr]
+    }
+    function splitExecName(val) {
+        var _if = val.split("t_then")[0];
+        var _then = val.split("t_then")[1].split("e_else")[0];
+        var _else = val.split("t_then")[1].split("e_else")[1];
+        var ifArr = _if && _if.length > 0 ? _if.split(",") : [];
+        var thenArr = _then && _then.length > 0 ? _then.split(",") : [];
+        var elseArr = _else && _else.length > 0 ? _else.split(",") : [];
+        return [ifArr, thenArr, elseArr]
+    }
+</script>
+</body>
+</html>

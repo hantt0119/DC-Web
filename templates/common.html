@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'js/plugins/bootstrap-3.3.7-dist/css/bootstrap.css' %}"/>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/style.css' %}?ver={% now "YmHis" %}"/>
+    <link rel="stylesheet" href="{% static 'js/plugins/bootstrap-table/bootstrap-table.css' %}">
+    <script type="text/javascript" src="{% static 'js/plugins/jquery-3.2.1.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/plugins/bootstrap-table/bootstrap-table.js' %}"></script>
+    <script type="text/javascript"
+            src="{% static 'js/plugins/bootstrap-table/locale/bootstrap-table-zh-CN.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/plugins/layer/layer.js' %}"></script>
+</head>
+<body>
+
+<script type="text/javascript">
+    var separator = '±°';
+    window.prompt = function (title, val, callback) {
+        layer.prompt({
+            formType: 2,
+            value: val,   //初始值
+            title: title,
+            shadeClose: true,
+            area: ['800px', '350px'] //自定义文本域宽高
+        }, function (value, index, elem) {
+            callback(value, elem);
+            layer.close(index);
+        });
+    };
+    window.openWin = function (title, content, success, ok, params) {
+        var area = params ? params.area || 'auto' : 'auto';
+        layer.open({
+            type: 1,
+            title: title,
+            shade: false,
+            btn: ['确定'],
+            area: area,
+            content: content,
+            closeBtn: 1,
+            success: function () {
+                if (typeof success == 'function') {
+                    success.apply(this, arguments);
+                }
+            },
+            yes: function (index) {
+                layer.close(index);
+                if (typeof ok == 'function') {
+                    ok.apply(this, arguments);
+                }
+            }
+        });
+    };
+    window.common = {
+        showTable: function(args){
+            var flag = args.flag,data = args.data;
+            if(flag){
+                var content = '<div>';
+                if(!data || data.length == 0){
+                    content += '查询数据为空';
+                }else{
+                    content += '<table class="bootstrap-table text-nowrap search-table">';
+                    for(var i = 0;i < data.length;i++){
+                        var row = data[i];
+                        content += '<tr>';
+                        for(var j = 0;j < row.length; j ++){
+                        content += '<td>'+row[j]+'</td>';
+                        }
+                        content += '</tr>';
+                    }
+                    content += '</table>';
+                }
+                content += '</div>';
+
+                openWin('查询结果',content,null,null,{
+                    area: '1000px'
+                });
+            }else{
+                layer.msg('查询失败');
+            }
+        }
+    };
+    // 获取列定义
+    common.getColumnDefine = function (codeTable, callback,multi) {
+        $.post("/get_table_define/", {codeTable: codeTable}, function (data) {
+            var columns = [];
+            var tableWidth = 0;
+            if(!multi || multi == 'Y'){
+                columns.push({field: 'ck', title: 'ck', radio: true, showIndex: -1, valign: 'middle'});
+            }
+            var code_column, name_column, width;
+            for (var i = 0; i < data.length; i++) {
+                code_column = data[i]['code_column'];
+                name_column = data[i]['name_column'];
+                width = data[i]['num_width'];
+                var column = {field: code_column, title: name_column, valign: 'middle'};
+                if (width) {
+                    column.width = width;
+                    tableWidth += parseInt(width);
+                }
+                // bl开头字段格式化显示下拉列表
+                if (code_column.indexOf('bl') == 0) {
+                    column.formatter = function (value, row, index, field) {
+                        var arr = ['<select class="form-control" data-id=' + row.id + ' data-field=' + field + '>'];
+                        arr.push('<option value="y" ' + ('y' == value ? 'selected' : '') + '>y</option>');
+                        arr.push('<option value="n" ' + ('n' == value ? 'selected' : '') + '>n</option>');
+                        arr.push('</select>');
+                        return arr.join("");
+                    };
+                }
+                // dscp,cmnt,logic开头的字段，内容不显示，双击弹出框中编辑，有内容，前端显示绿色。
+                if (code_column.indexOf('dscp') == 0 || code_column.indexOf('cmnt') == 0 || code_column.indexOf('logic') == 0) {
+                    column.formatter = function (value, row, index, field) {
+                        if(value && value.length > 0){
+                            return '<div name="dblBox" data-index=' + index + ' data-field=' + field + ' style="height:25px;background-color:#66CDAA;"></div>';
+                        }else{
+                            return '<div name="dblBox" data-index=' + index + ' data-field=' + field + ' style="height:25px;"></div>';
+                        }
+
+                    };
+                }
+                columns.push(column);
+            }
+{#            var clientWidth = window.document.documentElement.clientWidth - 30;#}
+{#            tableWidth = tableWidth < clientWidth ? clientWidth : tableWidth;#}
+            if (typeof callback == 'function') {
+                callback(columns, tableWidth);
+            }
+        }, 'json');
+    };
+    // 获取表格标准配置
+    common.getTableDefine = function (prms) {
+        var tbId = prms.tbId, toolBarId = prms.toolBarId, queryParams = prms.queryParams, onClickRow = prms.onClickRow,
+            height = prms.height;
+        return {
+            pagination: true,
+            height: height,
+            search: true,
+            sidePagination: "server",
+            toolbar: toolBarId,
+            queryParamsType: "",
+            uniqueId: 'id',
+            singleSelect:true,
+            clickToSelect:true,
+            queryParams: function (params) {
+                var temp = {
+                    searchText: params.searchText,
+                    pageSize: params.pageSize,
+                    pageNumber: params.pageNumber,
+                    sortName: params.sortName,
+                    sortOrder: params.sortOrder
+                };
+                $.extend(temp, queryParams);
+                return temp;
+            },
+            pageNumber: 1,
+            pageSize: 20,
+            onClickRow: function (row, $tr) {
+                var checked = $tr.find("[name='btSelectItem']").is(":checked");
+                $tr.siblings().removeClass("bs-table-select");
+                if (!checked) {
+                    $tr.addClass("bs-table-select");
+                }
+                if (typeof onClickRow == 'function') {
+                    onClickRow(row, $tr);
+                }
+            }
+
+        };
+    };
+    // 双击编辑排除列的规则
+    common.filterDblCell = function (field) {
+        if (field.indexOf("bl") == 0 || ['id', 'ck'].indexOf(field) >= 0) {
+            return true;
+        }
+    };
+    // 注册下拉框change事件
+    common.onSelectChange = function ($sel, callback) {
+        $sel.off().on('change', function () {
+            if (typeof callback == 'function') {
+                callback.call(this);
+            }
+        }).on('click', function () {
+            return false;
+        }).on('dblclick', function () {
+            return false;
+        });
+    };
+    // 新增/编辑
+    common.edit = function (url, tbId, id, field, value, params, refreshOpts) {
+        var msg = id ? '修改' : '保存';
+        var _params = {id: id, name: field, value: value};
+        var refreshParams = {};
+        if(refreshOpts){
+            $.extend(refreshParams,refreshOpts);
+        }
+        if (params) $.extend(_params, params);
+        $.post(url, _params, function (data) {
+            if (data.flag) {
+                layer.msg(msg + '成功');
+                $(tbId).bootstrapTable('refreshOptions',refreshParams);
+            } else {
+                layer.msg(msg + '失败');
+            }
+        }, 'json');
+    };
+    // 获取选中行ID
+    common.getSelections = function (tbId) {
+        var rows = $(tbId).bootstrapTable("getSelections");
+        if (rows.length == 0) {
+            layer.msg('至少选中一行');
+        } else {
+            var arr = [];
+            for (var i = 0; i < rows.length; i++) {
+                arr.push(rows[i].id);
+            }
+            return arr.join(",");
+        }
+    };
+    // 删除
+    common.del = function (url, tbId, refreshOpts) {
+        common.delOrCopy(0, url, tbId, refreshOpts);
+    };
+    // 复制
+    common.copy = function (url, tbId, refreshOpts) {
+        common.delOrCopy(1, url, tbId, refreshOpts);
+    };
+    common.delOrCopy = function (opera, url, tbId, refreshOpts) {
+        var id = common.getSelections(tbId);
+        if (!id) {
+            return;
+        }
+        var refreshParams = {};
+        if(refreshOpts){
+            $.extend(refreshParams,refreshOpts);
+        }
+        var msg = opera == 0 ? '删除' : '复制';
+        $.post(url, {id: id}, function (data) {
+            if (data.flag) {
+                layer.msg(msg + '成功');
+                $(tbId).bootstrapTable('refreshOptions',refreshParams);
+            } else {
+                layer.msg(msg + '失败');
+            }
+        }, 'json');
+    };
+    common.getTypeLayerSel = function (type_layers, id, value, field) {
+        var fieldName = field ? field : 'type_layer';
+        var arr = ['<select class="form-control" data-id=' + id + ' data-field="'+fieldName+'">'];
+        arr.push('<option value="">请选择</option>');
+        for (var i = 0; i < type_layers.length; i++) {
+            var type_layer = type_layers[i];
+            var code = type_layer.code;
+            var name = type_layer.name;
+            arr.push('<option value="' + code + '" ' + (code == value ? 'selected' : '') + '>' + name + '</option>');
+        }
+        arr.push('</select>');
+        return arr.join("");
+    };
+    common.getRow = function (tbId, uniqueId) {
+        return $(tbId).bootstrapTable('getRowByUniqueId', uniqueId);
+    };
+    common.getArraySn = function(len) {
+        var arr = [];
+        for (var i = 1; i <= len; i++) {
+            arr.push(i);
+        }
+        return arr;
+    };
+</script>
+</body>
+</html>

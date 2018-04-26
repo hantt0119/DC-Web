@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>数据-模型</title>
+    {% include 'common.html' %}
+</head>
+<body>
+<div class="row">
+    <div class="col-md-12">
+        <table id="dm" class="text-nowrap"></table>
+    </div>
+</div>
+<div id="dm_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addDm()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyDm()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delDm()">删除</button>
+    <button type="button" class="btn btn-default" onClick="queryDm()">查询</button>
+    <button type="button" class="btn btn-default" onClick="exportDm()">导出</button>
+</div>
+<script>
+    var dmTbId = '#dm';
+
+    var $dmTb = $(dmTbId);
+
+    var height = window.document.documentElement.clientHeight;
+
+    // 读取defn_dm结构并加载表数据
+    common.getColumnDefine("defn_dm", function (columns, tableWidth) {
+        for (var i = 0; i < columns.length; i++) {
+            var column = columns[i];
+            if (column.field == 'bl_right') {
+                delete column.formatter;
+            }
+        }
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#dm_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/data/dm_list/',
+            columns: columns,
+            onLoadSuccess: function () {
+                // 注册select事件
+                common.onSelectChange($dmTb.find("select"), function () {
+                    var $sel = $(this);
+                    var field = $sel.attr("data-field");
+                    var id = $sel.attr("data-id");
+                    var value = $sel.val();
+                    // 获取行数据
+                    var row = common.getRow(dmTbId, id);
+                    if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                        layer.msg('已锁定');
+                        $sel.val(row[field]);
+                        return false;
+                    }
+                    common.edit('/data/dm_edit/', dmTbId, id, field, value);
+                });
+            },
+            onDblClickCell: function (field, value, row) {
+                if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                    layer.open({
+                        content: value,
+                        title: field
+                    });
+                } else {
+                    prompt('请输入' + field, value, function (value) {
+                        common.edit('/data/dm_edit/', dmTbId, row.id, field, value);
+                    });
+                }
+            }
+        });
+        $dmTb.width(tableWidth).bootstrapTable(tableDefine);
+    });
+
+    function addDm() {
+        common.edit('/data/dm_edit/', dmTbId);
+    }
+
+    function delDm() {
+        common.del('/data/dm_del/', dmTbId);
+    }
+
+    function copyDm() {
+        common.copy('/data/dm_copy/', dmTbId);
+    }
+
+    function queryDm() {
+        var rows = $(dmTbId).bootstrapTable("getSelections");
+        if (rows.length != 1) {
+            layer.msg('请选中一条记录执行');
+            return false;
+        }
+        var id = rows[0].id;
+        var index = layer.load(0, {shade: true});
+        $.post('/data/dm_query/', {id: id}, function (data) {
+            layer.close(index);
+            common.showTable(data);
+        }, 'json');
+    }
+
+    function exportDm() {
+        var rows = $(dmTbId).bootstrapTable("getSelections");
+        if (rows.length != 1) {
+            layer.msg('请选中一条记录执行');
+            return false;
+        }
+        var id = rows[0].id;
+        window.open('/data/dm_excel_export/?id='+id);
+    }
+</script>
+</body>
+</html>

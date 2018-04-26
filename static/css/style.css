@@ -1,0 +1,41 @@
+.row{
+    margin-right:0;
+    margin-left:0;
+}
+.fixed-table-container tbody .selected td{
+    background-color:initial!important;
+}
+.bs-table-select{
+    background-color:#f5f5f5;
+}
+/* Layer */
+a.layui-layer-ico{
+    padding:0;
+}
+.layui-layer-btn a{
+    float:none;
+}
+
+/* bootstrap label*/
+.label{margin : 4px 2px;}
+.label .glyphicon{margin-left:2px;cursor:pointer;}
+.form-control{
+    min-width:100px;
+    display:inline-block;
+    width:auto;
+}
+
+.search-table{
+    border:1px solid #ccc;
+    text-align:center;
+    border-collapse:collapse;
+}
+.search-table td{
+    border:1px solid #ccc;
+    padding:3px 8px;
+}
+
+
+.layui-layer-shade{
+    background-color: rgba(0, 0, 0,0.2)!important;
+}

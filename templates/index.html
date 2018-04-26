@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Home Page</title>
+    {% include 'common.html' %}
+</head>
+<body>
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">功能</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="list-group">
+            <a href="{% url 'prog_dtl'%}" class="list-group-item" target="_blank">功能-程序</a>
+            <a href="{% url 'inst_prog_aide'%}" class="list-group-item" target="_blank">功能-实例</a>
+            <a href="{% url 'proc_inst_aide'%}" class="list-group-item" target="_blank">功能-流程</a>
+            <a href="{% url 'schd_proc_aide'%}" class="list-group-item" target="_blank">功能-计划</a>
+        </ul>
+      </div>
+    </div>
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">基础</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="list-group">
+            <a href="{% url 'table_view'%}" class="list-group-item" target="_blank">基础-表&视图</a>
+            <a href="{% url 'dtype_type_error'%}" class="list-group-item" target="_blank">基础-字典</a>
+        </ul>
+      </div>
+    </div>
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">数据</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="list-group">
+            <a href="{% url 'ds_dtl'%}" class="list-group-item" target="_blank">数据-源</a>
+            <a href="{% url 'dm'%}" class="list-group-item" target="_blank">数据-模型</a>
+            <a href="{% url 'dr'%}" class="list-group-item" target="_blank">数据-报表</a>
+        </ul>
+      </div>
+    </div>
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">监控</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="list-group">
+            <a href="{% url 'log'%}" class="list-group-item" target="_blank">监控-日志</a>
+        </ul>
+      </div>
+    </div>
+</body>
+</html>

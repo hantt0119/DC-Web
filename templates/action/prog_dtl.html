@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>功能-程序</title>
+    {% include 'common.html' %}
+</head>
+<body>
+<div class="row">
+    <div class="col-md-4">
+        <table id="prog" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-8">
+        <table id="prog_dtl" class="text-nowrap"></table>
+    </div>
+</div>
+
+<div id="prog_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addProg()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyProg()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delProg()">删除</button>
+    <select id="layers" class="form-control"></select>
+</div>
+<div id="prog_dtl_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addProgDtl()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyProgDtl()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delProgDtl()">删除</button>
+</div>
+<script>
+    var progTbId = '#prog';
+    var progDtlTbId = '#prog_dtl';
+    var $progTb = $(progTbId);
+    var $progDtlTb = $(progDtlTbId);
+    var height = window.document.documentElement.clientHeight;
+    var id_prog = null; //当前点击
+    var type_layer = '';
+    $.post('/action/get_type_layers/', {}, function (type_layers) {
+        var arr = [];
+        for (var i = 0; i < type_layers.length; i++) {
+            var t = type_layers[i];
+            var code = t.code;
+            var name = t.name;
+            if (i == 0) {
+                type_layer = code;
+            }
+            arr.push('<option value="' + code + '" >' + name + '</option>');
+        }
+        $("#layers").html(arr.join(""));
+        $("#layers").on("change", function () {
+            type_layer = $(this).val();
+            $progTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        type_layer: type_layer
+                    };
+                    return temp;
+                }
+            });
+        });
+        common.getColumnDefine("defn_prog", function (columns, tableWidth) {
+            // type_layer
+            for (var index in columns) {
+                var column = columns[index];
+                {#                if (column.field == 'type_layer') {#}
+                {#                    column.formatter = function (value, row) {#}
+                {#                        return common.getTypeLayerSel(type_layers, row.id, value);#}
+                {#                    }#}
+                {#                }#}
+            }
+            var tableDefine = common.getTableDefine({
+                toolBarId: '#prog_toolbar',
+                height: height,
+                queryParams: {
+                    type_layer: type_layer
+                },
+                onClickRow: function (row) {
+                    if (id_prog != row.id) {
+                        id_prog = row.id;
+                        loadProgDtl();
+                    }
+                }
+            });
+            $.extend(tableDefine, {
+                url: '/action/prog_list/',
+                columns: columns,
+                onLoadSuccess: function (data) {
+                    // 注册select事件
+                    common.onSelectChange($progTb.find("select"), function () {
+                        var $sel = $(this);
+                        var field = $sel.attr("data-field");
+                        var id = $sel.attr("data-id");
+                        var value = $sel.val();
+                        // 获取行数据
+                        var row = common.getRow(progTbId, id);
+                        if (row.bl_lock == 'y') {
+                            layer.msg('已锁定');
+                            $sel.val(row[field]);
+                            return false;
+                        }
+                        common.edit('/action/prog_edit/', progTbId, id, field, value);
+                    });
+
+                    //默认触发首行点击事件
+                    if (data.rows && data.rows[0]) {
+                        id_prog = data.rows[0].id;
+                        $progTb.find("tbody > tr:first").addClass("bs-table-select");
+                    }else{
+                        id_prog = '';
+                    }
+                    loadProgDtl();
+                },
+                onDblClickCell: function (field, value, row) {
+                    if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                        layer.open({
+                            content: value,
+                            title: field
+                        });
+                    } else {
+                        prompt('请输入' + field, value, function (value) {
+                            common.edit('/action/prog_edit/', progTbId, row.id, field, value);
+                        });
+                    }
+                }
+            });
+            $progTb.width(tableWidth).bootstrapTable(tableDefine);
+        });
+    }, 'json');
+
+
+    var progDtlColumns = null;
+
+    function loadProgDtl() {
+        if (progDtlColumns) {
+            $progDtlTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        id_prog: id_prog
+                    };
+                    return temp;
+                }
+            });
+        } else {
+            common.getColumnDefine("defn_prog_dtl", function (columns, tableWidth) {
+                progDtlColumns = columns;
+                for (var index in columns) {
+                    var column = columns[index];
+                    var array_index = ['array_dvar', 'array_ivar', 'array_lvar', 'array_dval', 'array_lval'].indexOf(column.field);
+                    if (array_index >= 0) {
+                        var name = array_index >= 3 ? 'val' : 'var';
+                        (function (column, name) {
+                            column['formatter'] = function (val, row) {
+                                var html = '<div data-id="' + row.id + '" data-field="' + column.field + '" data-val="' + val + '" name="' + name + '">';
+                                if (val && val.length > 0) {
+                                    var arr = val.split(separator);
+                                    for (var i = 0; i < arr.length; i++) {
+                                        var content = arr[i];
+                                        html += '<span class="label label-default">' + content + '<span class="glyphicon glyphicon-remove"></span></span>';
+                                        html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                        if ((i + 1) % 3 == 0) {
+                                            html += '<div style="padding:2px 0;"></div>';
+                                        }
+                                    }
+                                } else {
+                                    html += '<span class="label label-success"><span class="glyphicon glyphicon-plus"></span></span>';
+                                }
+                                html += '</div>';
+                                return html;
+                            }
+                        })(column, name);
+                    }
+                }
+                var tableDefine = common.getTableDefine({
+                    toolBarId: '#prog_dtl_toolbar',
+                    height: height,
+                    queryParams: {
+                        id_prog: id_prog
+                    }
+                });
+                $.extend(tableDefine, {
+                    url: '/action/prog_dtl_list/',
+                    columns: columns,
+                    onLoadSuccess: function () {
+                        // 注册select事件
+                        common.onSelectChange($progDtlTb.find("select"), function () {
+                            var $sel = $(this);
+                            var field = $sel.attr("data-field");
+                            var id = $sel.attr("data-id");
+                            var value = $sel.val();
+                            common.edit('/action/prog_dtl_edit/', progDtlTbId, id, field, value);
+                        });
+                        // 注册array_添加
+                        $progDtlTb.find(".glyphicon-plus").off().on('click', function () {
+                            // 添加
+                            var $this = $(this);
+                            var $div = $this.closest("div");
+                            var name = $div.attr("name");
+                            var id = $div.data("id");
+                            var field = $div.data("field");
+                            var val = $div.data("val");
+                            // 获取行数据
+                            var row = common.getRow(progDtlTbId, id);
+                            if (row.bl_lock == 'y') {
+                                layer.msg('已锁定');
+                                return;
+                            }
+                            var arr = [];
+                            var add_val = '';
+                            var len = val ? val.length : 0;
+                            if (len > 0) {
+                                arr = val.split(separator);
+                            }
+
+                            var index = $(this).closest("div").find(".label-success").index($(this).parent()) + 1;
+                            if (name == 'var') {
+                                if (arr.length == 0) {
+                                    add_val = 'var1_';
+                                } else {
+                                    add_val = 'var' + (arr.length + 1) + '_';
+                                }
+                                // 区分新增逻辑
+                                if (len > 0) {
+                                    arr.splice(index, 0, add_val)
+                                } else {
+                                    arr.push(add_val);
+                                }
+                                common.edit('/action/prog_dtl_edit/', progDtlTbId, id, field, arr.join(separator));
+                            } else {
+                                prompt('请输入', '', function (value) {
+                                    if (len > 0) {
+                                        arr.splice(index, 0, value)
+                                    } else {
+                                        arr.push(value);
+                                    }
+                                    common.edit('/action/prog_dtl_edit/', progDtlTbId, id, field, arr.join(separator));
+                                })
+                            }
+                        });
+                        $progDtlTb.find(".glyphicon-remove").off().on('click', function () {
+                            // 删除
+                            var $this = $(this);
+                            var $div = $this.closest("div");
+                            var id = $div.data("id");
+                            var field = $div.data("field");
+                            var val = $div.data("val");
+                            // 获取行数据
+                            var row = common.getRow(progDtlTbId, id);
+                            if (row.bl_lock == 'y') {
+                                layer.msg('已锁定');
+                                return;
+                            }
+                            var arr = val.split(separator);
+                            var index = $(this).closest("div").find(".label-default").index($(this).parent());
+                            arr.splice(index, 1);
+                            common.edit('/action/prog_dtl_edit/', progDtlTbId, id, field, arr.join(separator));
+                        });
+                    },
+                    onDblClickCell: function (field, value, row) {
+                        if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                            layer.open({
+                                content: value,
+                                title: field
+                            });
+                        } else {
+                            prompt('请输入' + field, value, function (value) {
+                                common.edit('/action/prog_dtl_edit/', progDtlTbId, row.id, field, value);
+                            });
+                        }
+                    }
+                });
+                $progDtlTb.width(tableWidth).bootstrapTable(tableDefine);
+            });
+        }
+    }
+
+    function addProg() {
+        common.edit('/action/prog_edit/', progTbId, undefined, 'type_layer', type_layer);
+    }
+
+    function delProg() {
+        common.del('/action/prog_del/', progTbId);
+    }
+
+    function copyProg() {
+        common.copy('/action/prog_copy/', progTbId);
+    }
+
+    function addProgDtl() {
+        common.edit('/action/prog_dtl_edit/', progDtlTbId, undefined, 'id_prog', id_prog);
+    }
+
+    function delProgDtl() {
+        common.del('/action/prog_dtl_del/', progDtlTbId);
+    }
+
+    function copyProgDtl() {
+        common.copy('/action/prog_dtl_copy/', progDtlTbId);
+    }
+</script>
+</body>
+</html>

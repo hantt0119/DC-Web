@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>基础-字典</title>
+    {% include 'common.html' %}
+</head>
+<body>
+<div class="row">
+    <div class="col-md-4">
+        <table id="dType" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-4">
+        <table id="type" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-4">
+        <table id="error" class="text-nowrap"></table>
+    </div>
+</div>
+
+<div id="dtype_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addDType()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyDType()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delDType()">删除</button>
+</div>
+<div id="type_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addType()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyType()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delType()">删除</button>
+</div>
+<div id="error_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addError()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyError()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delError()">删除</button>
+</div>
+
+<script>
+    var dTypeTbId = '#dType';
+    var typeTbId = '#type';
+    var errorTbId = '#error';
+
+    var $dTypeTb = $(dTypeTbId);
+    var $typeTb = $(typeTbId);
+    var $errorTb = $(errorTbId);
+    var height = window.document.documentElement.clientHeight;
+
+    // 读取defn_dtype结构并加载表数据
+    common.getColumnDefine("defn_dtype", function (columns, tableWidth) {
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#dtype_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/base/d_type_list/',
+            columns: columns,
+            onLoadSuccess: function () {
+                // 注册select事件
+                common.onSelectChange($dTypeTb.find("select"), function () {
+                    var $sel = $(this);
+                    var field = $sel.attr("data-field");
+                    var id = $sel.attr("data-id");
+                    var value = $sel.val();
+                    // 获取行数据
+                    var row = common.getRow(dTypeTbId, id);
+                    if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                        layer.msg('已锁定');
+                        $sel.val(row[field]);
+                        return false;
+                    }
+                    common.edit('/base/d_type_edit/', dTypeTbId, id, field, value);
+                });
+            },
+            onDblClickCell: function (field, value, row) {
+                if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                    layer.open({
+                        content: value,
+                        title: field
+                    });
+                } else {
+                    prompt('请输入' + field, value, function (value) {
+                        common.edit('/base/d_type_edit/', dTypeTbId, row.id, field, value);
+                    });
+                }
+            }
+        });
+        $dTypeTb.width(tableWidth).bootstrapTable(tableDefine);
+    });
+
+    // 读取defn_type结构并加载表数据
+    common.getColumnDefine("defn_type", function (columns, tableWidth) {
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#type_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/base/type_list/',
+            columns: columns,
+            onLoadSuccess: function () {
+                // 注册select事件
+                common.onSelectChange($typeTb.find("select"), function () {
+                    var $sel = $(this);
+                    var field = $sel.attr("data-field");
+                    var id = $sel.attr("data-id");
+                    var value = $sel.val();
+                    // 获取行数据
+                    var row = common.getRow(typeTbId, id);
+                    if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                        layer.msg('已锁定');
+                        $sel.val(row[field]);
+                        return false;
+                    }
+                    common.edit('/base/type_edit/', typeTbId, id, field, value);
+                });
+            },
+            onDblClickCell: function (field, value, row) {
+                if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                    layer.open({
+                        content: value,
+                        title: field
+                    });
+                } else {
+                    prompt('请输入' + field, value, function (value) {
+                        common.edit('/base/type_edit/', typeTbId, row.id, field, value);
+                    });
+                }
+            }
+        });
+        $typeTb.width(tableWidth).bootstrapTable(tableDefine);
+    });
+
+    // 读取defn_error结构并加载表数据
+    common.getColumnDefine("defn_error", function (columns, tableWidth) {
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#error_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/base/error_list/',
+            columns: columns,
+            onLoadSuccess: function () {
+                // 注册select事件
+                common.onSelectChange($errorTb.find("select"), function () {
+                    var $sel = $(this);
+                    var field = $sel.attr("data-field");
+                    var id = $sel.attr("data-id");
+                    var value = $sel.val();
+                    // 获取行数据
+                    var row = common.getRow(errorTbId, id);
+                    if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                        layer.msg('已锁定');
+                        $sel.val(row[field]);
+                        return false;
+                    }
+                    common.edit('/base/error_edit/', errorTbId, id, field, value);
+                });
+            },
+            onDblClickCell: function (field, value, row) {
+                if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                    layer.open({
+                        content: value,
+                        title: field
+                    });
+                } else {
+                    prompt('请输入' + field, value, function (value) {
+                        common.edit('/base/error_edit/', errorTbId, row.id, field, value);
+                    });
+                }
+            }
+        });
+        $errorTb.width(tableWidth).bootstrapTable(tableDefine);
+    });
+
+
+    function addDType() {
+        common.edit('/base/d_type_edit/', dTypeTbId);
+    }
+
+    function delDType() {
+        common.del('/base/d_type_del/', dTypeTbId);
+    }
+
+    function copyDType() {
+        common.copy('/base/d_type_copy/', dTypeTbId);
+    }
+
+
+    function addType() {
+        common.edit('/base/type_edit/', typeTbId);
+    }
+
+    function delType() {
+        common.del('/base/type_del/', typeTbId);
+    }
+
+    function copyType() {
+        common.copy('/base/type_copy/', typeTbId);
+    }
+
+
+    function addError() {
+        common.edit('/base/error_edit/', errorTbId);
+    }
+
+    function delError() {
+        common.del('/base/error_del/', errorTbId);
+    }
+
+    function copyError() {
+        common.copy('/base/error_copy/', errorTbId);
+    }
+</script>
+</body>
+</html>

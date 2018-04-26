@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>基础-表&视图</title>
+    {% include 'common.html' %}
+</head>
+<body>
+<div class="row">
+    <div class="col-md-6">
+        <table id="table" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-6">
+        <table id="tableDtl" class="text-nowrap"></table>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        <table id="view" class="text-nowrap"></table>
+    </div>
+</div>
+
+<div id="table_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addTable()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyTable()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delTable()">删除</button>
+    <button type="button" class="btn btn-default" onClick="createTable()">创建</button>
+</div>
+<div id="table_dtl_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addTableDtl()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyTableDtl()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delTableDtl()">删除</button>
+</div>
+<div id="view_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addView()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyView()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delView()">删除</button>
+    <button type="button" class="btn btn-default" onClick="createView()">创建</button>
+    <button type="button" class="btn btn-default" onClick="queryView()">查询</button>
+    <button type="button" class="btn btn-default" onClick="exportView()">导出</button>
+</div>
+
+<script>
+    var tableTbId = '#table';
+    var tableDtlTbId = '#tableDtl';
+    var viewTbId = '#view';
+
+    var $tableTb = $(tableTbId);
+    var $tableDtlTb = $(tableDtlTbId);
+    var $viewTb = $(viewTbId);
+    var height = window.document.documentElement.clientHeight;
+    var height_top, height_bottom;
+    height_top = height_bottom = height * 0.5;
+
+    var id_table = null;
+    var tabl_dtl_columns = null;
+
+
+    // 读取defn_table结构并加载表数据
+    common.getColumnDefine("defn_table", function (columns, tableWidth) {
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#table_toolbar',
+            height: height_top,
+            onClickRow: function (row) {
+                if (id_table != row.id) {
+                    id_table = row.id;
+                    loadTableDtl();
+                }
+            }
+        });
+        $.extend(tableDefine, {
+            url: '/base/table_list/',
+            columns: columns,
+            onLoadSuccess: function (data) {
+                // 注册select事件
+                common.onSelectChange($tableTb.find("select"), function () {
+                    var $sel = $(this);
+                    var field = $sel.attr("data-field");
+                    var id = $sel.attr("data-id");
+                    var value = $sel.val();
+                    // 获取行数据
+                    var row = common.getRow(tableTbId, id);
+                    if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                        layer.msg('已锁定');
+                        $sel.val(row[field]);
+                        return false;
+                    }
+                    common.edit('/base/table_edit/', tableTbId, id, field, value);
+                });
+
+                //默认触发首行点击事件
+                if (data.rows && data.rows[0]) {
+                    id_table = data.rows[0].id;
+                    $tableTb.find("tbody > tr:first").addClass("bs-table-select");
+                    loadTableDtl();
+                }
+            },
+            onDblClickCell: function (field, value, row) {
+                if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                    layer.open({
+                        content: value,
+                        title: field
+                    });
+                } else {
+                    prompt('请输入' + field, value, function (value) {
+                        common.edit('/base/table_edit/', tableTbId, row.id, field, value);
+                    });
+                }
+            }
+        });
+        $tableTb.width(tableWidth).bootstrapTable(tableDefine);
+    });
+
+    // 读取defn_view结构并加载表数据
+    common.getColumnDefine("defn_view", function (columns, tableWidth) {
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#view_toolbar',
+            height: height_bottom
+        });
+        $.extend(tableDefine, {
+            url: '/base/view_list/',
+            columns: columns,
+            onLoadSuccess: function (data) {
+                // 注册select事件
+                common.onSelectChange($viewTb.find("select"), function () {
+                    var $sel = $(this);
+                    var field = $sel.attr("data-field");
+                    var id = $sel.attr("data-id");
+                    var value = $sel.val();
+                    // 获取行数据
+                    var row = common.getRow(viewTbId, id);
+                    if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                        layer.msg('已锁定');
+                        $sel.val(row[field]);
+                        return false;
+                    }
+                    common.edit('/base/view_edit/', viewTbId, id, field, value);
+                });
+            },
+            onDblClickCell: function (field, value, row) {
+                if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                    layer.open({
+                        content: value,
+                        title: field
+                    });
+                } else {
+                    prompt('请输入' + field, value, function (value) {
+                        common.edit('/base/view_edit/', viewTbId, row.id, field, value);
+                    });
+                }
+            }
+        });
+        $viewTb.width(tableWidth).bootstrapTable(tableDefine);
+    });
+
+
+    function loadTableDtl() {
+        if (tabl_dtl_columns) {
+            $tableDtlTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        id_table: id_table
+                    };
+                    return temp;
+                }
+            });
+        } else {
+            common.getColumnDefine("defn_table_dtl", function (columns, tableWidth) {
+                tabl_dtl_columns = columns;
+                var tableDefine = common.getTableDefine({
+                    height: height_top,
+                    toolBarId: '#table_dtl_toolbar',
+                    queryParams: {
+                        id_table: id_table
+                    }
+                });
+                $.extend(tableDefine, {
+                    url: '/base/table_dtl_list/',
+                    columns: columns,
+                    onLoadSuccess: function () {
+                        // 注册select事件
+                        common.onSelectChange($tableDtlTb.find("select"), function () {
+                            var $sel = $(this);
+                            var field = $sel.attr("data-field");
+                            var id = $sel.attr("data-id");
+                            var value = $sel.val();
+                            // 获取行数据
+                            var row = common.getRow(tableDtlTbId, id);
+                            if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                                layer.msg('已锁定');
+                                $sel.val(row[field]);
+                                return false;
+                            }
+                            common.edit('/base/table_dtl_edit/', tableDtlTbId, id, field, value);
+                        });
+                    },
+                    onDblClickCell: function (field, value, row) {
+                        if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                            layer.open({
+                                content: value,
+                                title: field
+                            });
+                        } else {
+                            prompt('请输入' + field, value, function (value) {
+                                common.edit('/base/table_dtl_edit/', tableDtlTbId, row.id, field, value);
+                            });
+                        }
+                    }
+                });
+                $tableDtlTb.width(tableWidth).bootstrapTable(tableDefine);
+            });
+        }
+    }
+
+    function addTable() {
+        common.edit('/base/table_edit/', tableTbId);
+    }
+
+    function delTable() {
+        common.del('/base/table_del/', tableTbId);
+    }
+
+    function copyTable() {
+        common.copy('/base/table_copy/', tableTbId);
+    }
+
+    function createTable() {
+        $.post('/base/table_create/', {}, function (data) {
+            var flag = data.flag;
+            if (flag == 1) {
+                layer.msg('执行成功');
+            } else {
+                layer.msg('执行失败');
+            }
+        }, 'json');
+    }
+
+
+    function addTableDtl() {
+        common.edit('/base/table_dtl_edit/', tableDtlTbId, undefined, undefined, id_table);
+    }
+
+    function delTableDtl() {
+        common.del('/base/table_dtl_del/', tableDtlTbId);
+    }
+
+    function copyTableDtl() {
+        common.copy('/base/table_dtl_copy/', tableDtlTbId);
+    }
+
+
+    function addView() {
+        common.edit('/base/view_edit/', viewTbId);
+    }
+
+    function delView() {
+        common.del('/base/view_del/', viewTbId);
+    }
+
+    function copyView() {
+        common.copy('/base/view_copy/', viewTbId);
+    }
+
+    function createView() {
+        $.post('/base/view_create/', {}, function (data) {
+            var flag = data.flag;
+            if (flag == 1) {
+                layer.msg('执行成功');
+            } else {
+                layer.msg('执行失败');
+            }
+        }, 'json');
+    }
+
+    function queryView() {
+        var rows = $(viewTbId).bootstrapTable("getSelections");
+        if (rows.length != 1) {
+            layer.msg('请选中一条记录执行');
+            return false;
+        }
+        var id = rows[0].id;
+        var index = layer.load(0, {shade: true});
+        $.post('/base/view_query/', {id: id}, function (data) {
+            layer.close(index);
+            common.showTable(data);
+        }, 'json');
+    }
+
+    function exportView() {
+        var rows = $(viewTbId).bootstrapTable("getSelections");
+        if (rows.length != 1) {
+            layer.msg('请选中一条记录执行');
+            return false;
+        }
+        var id = rows[0].id;
+        window.open('/base/view_excel_export/?id='+id);
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>监控-日志</title>
+    {% include 'common.html' %}
+</head>
+<body>
+
+<div class="row">
+    <div class="col-md-4">
+        <table id="timer" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-4">
+        <table id="error" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-4">
+        <table id="debug" class="text-nowrap"></table>
+    </div>
+</div>
+<div id="timer_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="clearTimer()">清除</button>
+</div>
+<div id="error_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="clearError()">清除</button>
+</div>
+<div id="debug_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="clearDebug()">清除</button>
+</div>
+
+<script>
+    var timerTbId = '#timer';
+    var errorTbId = '#error';
+    var debugTbId = '#debug';
+
+    var $timerTb = $(timerTbId);
+    var $errorTb = $(errorTbId);
+    var $debugTb = $(debugTbId);
+    var height = window.document.documentElement.clientHeight;
+
+    // 读取monitor_log_timer结构并加载表数据
+    common.getColumnDefine("monitor_log_timer", function (columns, tableWidth) {
+        for(var i = 0;i < columns.length;i++){
+            var column = columns[i];
+            if(column.field == 'id'){
+                column.sortable = true;
+            }
+        }
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#timer_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/monitor/log_timer_list/',
+            columns: columns
+        });
+        $timerTb.width(tableWidth).bootstrapTable(tableDefine);
+    }, 'N');
+
+    // 读取monitor_log_error结构并加载表数据
+    common.getColumnDefine("monitor_log_error", function (columns, tableWidth) {
+        for(var i = 0;i < columns.length;i++){
+            var column = columns[i];
+            if(column.field == 'id'){
+                column.sortable = true;
+            }
+        }
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#error_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/monitor/log_error_list/',
+            columns: columns
+        });
+        $errorTb.width(tableWidth).bootstrapTable(tableDefine);
+    }, 'N');
+
+    // 读取monitor_log_debug结构并加载表数据
+    common.getColumnDefine("monitor_log_debug", function (columns, tableWidth) {
+        for(var i = 0;i < columns.length;i++){
+            var column = columns[i];
+            if(column.field == 'id'){
+                column.sortable = true;
+            }
+        }
+        var tableDefine = common.getTableDefine({
+            toolBarId: '#debug_toolbar',
+            height: height
+        });
+        $.extend(tableDefine, {
+            url: '/monitor/log_debug_list/',
+            columns: columns
+        });
+        $debugTb.width(tableWidth).bootstrapTable(tableDefine);
+    }, 'N');
+
+    function clearTimer() {
+        $.post('/monitor/log_timer_truncate/', {}, function (data) {
+            var flag = data.flag;
+            if (flag == 1) {
+                layer.msg('执行成功');
+                $timerTb.bootstrapTable('refresh');
+            } else {
+                layer.msg('执行失败');
+            }
+        }, 'json');
+    }
+
+    function clearError() {
+        $.post('/monitor/log_error_truncate/', {}, function (data) {
+            var flag = data.flag;
+            if (flag == 1) {
+                layer.msg('执行成功');
+                $errorTb.bootstrapTable('refresh');
+            } else {
+                layer.msg('执行失败');
+            }
+        }, 'json');
+    }
+
+    function clearDebug() {
+        $.post('/monitor/log_debug_truncate/', {}, function (data) {
+            var flag = data.flag;
+            if (flag == 1) {
+                layer.msg('执行成功');
+                $debugTb.bootstrapTable('refresh');
+            } else {
+                layer.msg('执行失败');
+            }
+        }, 'json');
+    }
+</script>
+</body>
+</html>

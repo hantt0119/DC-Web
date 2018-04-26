@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>数据-源</title>
+    {% include 'common.html' %}
+</head>
+<body>
+
+<div class="row">
+    <div class="col-md-7">
+        <table id="ds" class="text-nowrap"></table>
+    </div>
+    <div class="col-md-5">
+        <table id="dsDtl" class="text-nowrap"></table>
+    </div>
+</div>
+<div id="ds_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addDs()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyDs()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delDs()">删除</button>
+</div>
+<div id="ds_dtl_toolbar" class="btn-group">
+    <button type="button" class="btn btn-default" onClick="addDsDtl()">新建</button>
+    <button type="button" class="btn btn-default" onClick="copyDsDtl()">复制</button>
+    <button type="button" class="btn btn-default" onClick="delDsDtl()">删除</button>
+</div>
+<script>
+    var dsTbId = '#ds';
+    var dsDtlTbId = '#dsDtl';
+
+    var $dsTb = $(dsTbId);
+    var $dsDtlTb = $(dsDtlTbId);
+    var height = window.document.documentElement.clientHeight;
+
+    var id_ds = null;
+    var dsDtlColumns = null;
+
+    $.post('/data/get_types/', {}, function (data) {
+        var strcs = data.strcs, incrs = data.incrs;
+        // 读取defn_ds结构并加载表数据
+        common.getColumnDefine("defn_ds", function (columns, tableWidth) {
+            for (var index in columns) {
+                var column = columns[index];
+                var field = column.field;
+                if (field == 'type_strc') {
+                    column.formatter = function (value, row) {
+                        return common.getTypeLayerSel(strcs, row.id, value,'type_strc');
+                    }
+                }
+                if (field == 'type_incr') {
+                    column.formatter = function (value, row) {
+                        return common.getTypeLayerSel(incrs, row.id, value,'type_incr');
+                    }
+                }
+            }
+            var tableDefine = common.getTableDefine({
+                toolBarId: '#ds_toolbar',
+                height: height,
+                onClickRow: function (row) {
+                    if (id_ds != row.id) {
+                        id_ds = row.id;
+                        loadDsDtl();
+                    }
+                }
+            });
+            $.extend(tableDefine, {
+                url: '/data/ds_list/',
+                columns: columns,
+                onLoadSuccess: function (data) {
+                    // 注册select事件
+                    common.onSelectChange($dsTb.find("select"), function () {
+                        var $sel = $(this);
+                        var field = $sel.attr("data-field");
+                        var id = $sel.attr("data-id");
+                        var value = $sel.val();
+                        // 获取行数据
+                        var row = common.getRow(dsTbId, id);
+                        if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                            layer.msg('已锁定');
+                            $sel.val(row[field]);
+                            return false;
+                        }
+                        common.edit('/data/ds_edit/', dsTbId, id, field, value);
+                    });
+
+                    //默认触发首行点击事件
+                    if (data.rows && data.rows[0]) {
+                        id_ds = data.rows[0].id;
+                        $dsTb.find("tbody > tr:first").addClass("bs-table-select");
+                        loadDsDtl();
+                    }
+                },
+                onDblClickCell: function (field, value, row) {
+                    if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                        layer.open({
+                            content: value,
+                            title: field
+                        });
+                    } else {
+                        prompt('请输入' + field, value, function (value) {
+                            common.edit('/data/ds_edit/', dsTbId, row.id, field, value);
+                        });
+                    }
+                }
+            });
+            $dsTb.width(tableWidth).bootstrapTable(tableDefine);
+        });
+    }, 'json');
+
+    function loadDsDtl() {
+        if (dsDtlColumns) {
+            $dsDtlTb.bootstrapTable('refreshOptions', {
+                queryParams: function (params) {
+                    var temp = {
+                        searchText: params.searchText,
+                        pageSize: params.pageSize,
+                        pageNumber: params.pageNumber,
+                        id_ds: id_ds
+                    };
+                    return temp;
+                }
+            });
+        } else {
+            common.getColumnDefine("defn_ds_dtl", function (columns, tableWidth) {
+                dsDtlColumns = columns;
+                var tableDefine = common.getTableDefine({
+                    height: height,
+                    toolBarId: '#ds_dtl_toolbar',
+                    queryParams: {
+                        id_ds: id_ds
+                    }
+                });
+                $.extend(tableDefine, {
+                    url: '/data/ds_dtl_list/',
+                    columns: columns,
+                    onLoadSuccess: function () {
+                        // 注册select事件
+                        common.onSelectChange($dsDtlTb.find("select"), function () {
+                            var $sel = $(this);
+                            var field = $sel.attr("data-field");
+                            var id = $sel.attr("data-id");
+                            var value = $sel.val();
+                            // 获取行数据
+                            var row = common.getRow(dsDtlTbId, id);
+                            if (row.bl_lock == 'y' && ['bl_active', 'bl_lock'].indexOf(field) < 0) {
+                                layer.msg('已锁定');
+                                $sel.val(row[field]);
+                                return false;
+                            }
+                            common.edit('/data/ds_dtl_edit/', dsDtlTbId, id, field, value);
+                        });
+                    },
+                    onDblClickCell: function (field, value, row) {
+                        if (common.filterDblCell(field) || row['bl_lock'] == 'y') {
+                            layer.open({
+                                content: value,
+                                title: field
+                            });
+                        } else {
+                            prompt('请输入' + field, value, function (value) {
+                                debugger;
+                                common.edit('/data/ds_dtl_edit/', dsDtlTbId, row.id, field, value);
+                            });
+                        }
+                    }
+                });
+                $dsDtlTb.width(tableWidth).bootstrapTable(tableDefine);
+            });
+        }
+    }
+
+    function addDs() {
+        common.edit('/data/ds_edit/', dsTbId);
+    }
+
+    function delDs() {
+        common.del('/data/ds_del/', dsTbId);
+    }
+
+    function copyDs() {
+        common.copy('/data/ds_copy/', dsTbId);
+    }
+
+    function addDsDtl() {
+        common.edit('/data/ds_dtl_edit/', dsDtlTbId, undefined, undefined, id_ds, {
+            queryParams: function (params) {
+                var temp = {
+                    searchText: params.searchText,
+                    pageSize: params.pageSize,
+                    pageNumber: params.pageNumber,
+                    id_ds: id_ds
+                };
+                return temp;
+            }
+        });
+    }
+
+    function delDsDtl() {
+        common.del('/data/ds_dtl_del/', dsDtlTbId, {
+            queryParams: function (params) {
+                var temp = {
+                    searchText: params.searchText,
+                    pageSize: params.pageSize,
+                    pageNumber: params.pageNumber,
+                    id_ds: id_ds
+                };
+                return temp;
+            }
+        });
+    }
+
+    function copyDsDtl() {
+        common.copy('/data/ds_dtl_copy/', dsDtlTbId, {
+            queryParams: function (params) {
+                var temp = {
+                    searchText: params.searchText,
+                    pageSize: params.pageSize,
+                    pageNumber: params.pageNumber,
+                    id_ds: id_ds
+                };
+                return temp;
+            }
+        });
+    }
+</script>
+</body>
+</html>
